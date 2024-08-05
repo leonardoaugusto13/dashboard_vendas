@@ -1,81 +1,68 @@
 import streamlit as st
-import requests
 import pandas as pd
-import time
+import base64
 
-st.set_page_config(page_title='',page_icon= 'https://price-survey.s3.amazonaws.com/post-uploads/price-logo.png'
-                   ,layout='wide')
-
-@st.cache_data
-def converte_csv(df):
-    return df.to_csv(index = False).encode('utf-8')
-
-
-def mensagem_sucesso():
-    sucesso = st.success('Arquivo baixado com sucesso!', icon = "✅")
-    time.sleep(10)
-    sucesso.empty()
+st.set_page_config(
+    page_title="Dados",
+    page_icon="🟢"
+)
+st.image(r"C:\Users\user\Desktop\Projetos\Dot_lemon\dotlemon logo.png", width=200)
+st.title('Dados') # titulo
+st.info('🟡 Preencha os campos com as informações solicitadas 🟡') # informativo
 
 
-st.title('DADOS BRUTOS')
+# Inicializa os valores na sessão
+if 'folha_pagamento' not in st.session_state:
+    st.session_state['folha_pagamento'] = 0.0
+if 'despesas_operacionais' not in st.session_state:
+    st.session_state['despesas_operacionais'] = 0.0
+if 'despesas_administrativas' not in st.session_state:
+    st.session_state['despesas_administrativas'] = 0.0
+if 'impostos_pagos' not in st.session_state:
+    st.session_state['impostos_pagos'] = 0.0
+if 'faturamento' not in st.session_state:
+    st.session_state['faturamento'] = 0.0
+if 'clientes_medios' not in st.session_state:
+    st.session_state['clientes_medios'] = 0
 
-url = 'https://labdados.com/produtos'
+# Campos de entrada para os  financeiros
+st.session_state['folha_pagamento'] = st.number_input("Gastos com Folha de Pagamento (Anual): R$", min_value=0.0, step=0.01, format="%.2f", value=st.session_state['folha_pagamento'])
+st.session_state['despesas_operacionais'] = st.number_input("Despesas Operacionais (Anual): R$", min_value=0.0, step=0.01, format="%.2f", value=st.session_state['despesas_operacionais'])
+st.session_state['despesas_administrativas'] = st.number_input("Despesas Administrativas (Anual): R$", min_value=0.0, step=0.01, format="%.2f", value=st.session_state['despesas_administrativas'])
+st.session_state['impostos_pagos'] = st.number_input("Impostos Pagos (Anual): R$", min_value=0.0, step=0.01, format="%.2f", value=st.session_state['impostos_pagos'])
+st.session_state['faturamento'] = st.number_input("Faturamento (Anual): R$", min_value=0.0, step=0.01, format="%.2f", value=st.session_state['faturamento'])
+st.session_state['clientes_medios'] = st.number_input("Quantidade média de Clientes (Mês):", min_value=0, step=1, format="%d", value=st.session_state['clientes_medios'])
 
-response = requests.get(url)
-dados = pd.DataFrame.from_dict(response.json())
-dados['Data da Compra'] = pd.to_datetime(dados['Data da Compra'], format = '%d/%m/%Y')
+# Botão de enviar
+if st.button("Enviar"):
+    # Recuperar valores do session_state
+    faturamento = st.session_state['faturamento']
+    clientes_medios = st.session_state['clientes_medios']
+    folha_pagamento = st.session_state['folha_pagamento']
+    despesas_operacionais = st.session_state['despesas_operacionais']
+    despesas_administrativas = st.session_state['despesas_administrativas']
+    impostos_pagos = st.session_state['impostos_pagos']
 
-with st.expander('Colunas'):
-    colunas = st.multiselect('Selecione as colunas' , list(dados.columns) , list(dados.columns))
+    # Verificação se os valores necessários foram inseridos
+    if faturamento > 0 and clientes_medios > 0 and folha_pagamento > 0 and despesas_operacionais > 0 and despesas_administrativas > 0 and impostos_pagos > 0:
+        # Cálculo das variáveis
+        st.session_state['aliquota_imposto'] = round(impostos_pagos / faturamento, 2) * 100
+        aliquota_imposto = st.session_state['aliquota_imposto']
+        st.session_state['custo_mensal_coberto'] = round((folha_pagamento + despesas_operacionais + despesas_administrativas) / 12, 2)
+        custo_mensal_coberto = st.session_state['custo_mensal_coberto']
+        st.session_state['contribuicao_cliente'] = round(custo_mensal_coberto / clientes_medios, 2)
+        contribuicao_cliente = st.session_state['contribuicao_cliente']
+        despesa_receita = round(custo_mensal_coberto / (faturamento / 12), 3) * 100
 
-st.sidebar.title('Filtros')
-with st.sidebar.expander('Nome do produto'):
-    produtos = st.multiselect('Selecione os produtos', dados['Produto'].unique(), dados['Produto'].unique())
-with st.sidebar.expander('Categoria do produto'):
-    categoria = st.multiselect('Selecione as categorias', dados['Categoria do Produto'].unique(), dados['Categoria do Produto'].unique())
-with st.sidebar.expander('Preço do produto'):
-    preco = st.slider('Selecione o preço', 0, 5000, (0,5000))
-with st.sidebar.expander('Frete da venda'):
-    frete = st.slider('Frete', 0,250, (0,250))
-with st.sidebar.expander('Data da compra'):
-    data_compra = st.date_input('Selecione a data', (dados['Data da Compra'].min(), dados['Data da Compra'].max()))
-with st.sidebar.expander('Vendedor'):
-    vendedores = st.multiselect('Selecione os vendedores', dados['Vendedor'].unique(), dados['Vendedor'].unique())
-with st.sidebar.expander('Local da compra'):
-    local_compra = st.multiselect('Selecione o local da compra', dados['Local da compra'].unique(), dados['Local da compra'].unique())
-with st.sidebar.expander('Avaliação da compra'):
-    avaliacao = st.slider('Selecione a avaliação da compra',1,5, value = (1,5))
-with st.sidebar.expander('Tipo de pagamento'):
-    tipo_pagamento = st.multiselect('Selecione o tipo de pagamento',dados['Tipo de pagamento'].unique(), dados['Tipo de pagamento'].unique())
-with st.sidebar.expander('Quantidade de parcelas'):
-    qtd_parcelas = st.slider('Selecione a quantidade de parcelas', 1, 24, (1,24))
+        # Exibição das variáveis calculadas
+        st.success(" Valores enviados com sucesso!")
+        st.write("### Valores Calculados")
+        st.write(f"Alíquota de Imposto: {aliquota_imposto:.0f}%")
+        st.write(f"Custo Mensal Coberto: R$ {custo_mensal_coberto:.2f}")
+        st.write(f"Contribuição por Cliente: R$ {contribuicao_cliente:.2f}")
+        st.write(f"Despesa/Receita: {despesa_receita:.0f}%")
+    else:
+        st.warning("Insira todos os campos.")
 
-query = '''
-Produto in @produtos and \
-`Categoria do Produto` in @categoria and \
-@preco[0] <= Preço <= @preco[1] and \
-@frete[0] <= Frete <= @frete[1] and \
-@data_compra[0] <= `Data da Compra` <= @data_compra[1] and \
-Vendedor in @vendedores and \
-`Local da compra` in @local_compra and \
-@avaliacao[0]<= `Avaliação da compra` <= @avaliacao[1] and \
-`Tipo de pagamento` in @tipo_pagamento and \
-@qtd_parcelas[0] <= `Quantidade de parcelas` <= @qtd_parcelas[1]
-'''
 
-dados_filtrados = dados.query(query)
-dados_filtrados = dados_filtrados[colunas]
-
-st.dataframe(dados_filtrados)
-
-st.markdown(f'A tabela possui :blue[{dados_filtrados.shape[0]}] linhas e :blue[{dados_filtrados.shape[1]}] colunas')
-
-st.markdown('Escreva um nome para o arquivo : ')
-coluna1,coluna2 = st.columns(2)
-
-with coluna1:
-    nome_arquivo = st.text_input('' , label_visibility= 'collapsed' , value= 'dados')
-    nome_arquivo += '.csv'
-with coluna2:
-    st.download_button('Fazer download da tabela em csv' , data = converte_csv(dados_filtrados), file_name= nome_arquivo, mime = 'text/csv' , on_click= mensagem_sucesso)
     
